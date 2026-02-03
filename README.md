@@ -1,4 +1,5 @@
-Gesture Controlled Presentation using OpenCV, Python, and MediaPipe
+Gesture Controlled Presentation using OpenCV, Python, and MediaPipe (main2.py is the current working version. After installing the dependencies it should work. Test on a MacBook M2)
+
 
 This project implements a real-time, gesture-controlled presentation system that allows users to navigate slides and annotate them using hand gestures captured via a webcam. The system leverages MediaPipe-based hand landmark detection (via cvzone) and deterministic gesture logic to provide a touchless, interactive presentation experience.
 
