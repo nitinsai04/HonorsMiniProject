@@ -1,42 +1,47 @@
 import os
 import cv2
-from cvzone.HandTrackingModule import HandDetector
 import numpy as np
+from cvzone.HandTrackingModule import HandDetector
 
-# Variables
-width = 1280
-height = 720
+# -------------------- Helper: Pinch Detection --------------------
+def pinch(lmList, id1, id2, threshold=40):
+    x1, y1 = lmList[id1][0], lmList[id1][1]
+    x2, y2 = lmList[id2][0], lmList[id2][1]
+    dist = ((x1 - x2)**2 + (y1 - y2)**2) ** 0.5
+    return dist < threshold
+
+# -------------------- Variables --------------------
+width, height = 1280, 720
 folderPath = "Resources"
-w = 960
-h = 540
+w, h = 960, 540
 
-# Camera Setup
 cap = cv2.VideoCapture(0)
 cap.set(3, width)
 cap.set(4, height)
 
-# Get the list of presentation images
-pathImages = sorted(os.listdir(folderPath), key=len)
-# print(pathImages)
-
-# Variables
+pathImages = sorted(
+    [f for f in os.listdir(folderPath) if f.startswith("slide") and f.endswith(".png")],
+    key=lambda x: int(x.replace("slide", "").replace(".png", ""))
+)
 imgNumber = 0
-ws, hs = 213, 120
+
 gestureThreshold = 300
 buttonPressed = False
 buttonCounter = 0
 buttonDelay = 20
+
 annotations = [[]]
 annotationNumber = 0
 annotationStart = False
 
-# Hand Detector
+# -------------------- Hand Detector --------------------
 detector = HandDetector(detectionCon=0.7, maxHands=1)
 
+# -------------------- Main Loop --------------------
 while True:
-    # Import Images
     success, img = cap.read()
     img = cv2.flip(img, 1)
+
     pathFullImage = os.path.join(folderPath, pathImages[imgNumber])
     imgCurrent = cv2.imread(pathFullImage)
     imgSlide = cv2.resize(imgCurrent, (w, h))
@@ -44,84 +49,80 @@ while True:
     hands, img = detector.findHands(img)
     cv2.line(img, (0, gestureThreshold), (width, gestureThreshold), (0, 255, 255), 5)
 
-    if hands and buttonPressed is False:
+    if hands and not buttonPressed:
         hand = hands[0]
+        lmList = hand["lmList"]
         fingers = detector.fingersUp(hand)
-        cx, cy = hand['center']
-        lmList = hand['lmList']
+        cx, cy = hand["center"]
 
-        # Constrain values for easier pointer drawing
+        xVal = int(np.interp(lmList[8][0], [width // 2, width], [0, w]))
+        yVal = int(np.interp(lmList[8][1], [150, height - 150], [0, h]))
+        indexFinger = (xVal, yVal)
 
-        xVal = int(np.interp(lmList[8][0], [width // 2, w], [0, width]))
-        yVal = int(np.interp(lmList[8][1], [150, height-150], [0, height]))
-        indexFinger = xVal, yVal
+        # -------------------- SLIDE CONTROL (PINCH) --------------------
+        if cy <= gestureThreshold:
 
-        if cy <= gestureThreshold: # If hand is at the height of the face
             annotationStart = False
-            # Gesture 1 - Left
-            if fingers == [1, 0, 0, 0, 0]:
-                annotationStart = False
+
+            # Previous slide (Thumb + Index)
+            if pinch(lmList, 4, 8):
                 if imgNumber > 0:
                     buttonPressed = True
+                    imgNumber -= 1
                     annotations = [[]]
                     annotationNumber = 0
-                    imgNumber -= 1
 
-            # Gesture 2 - Right
-            if fingers == [0, 0, 0, 0, 1]:
-                annotationStart = False
+            # Next slide (Thumb + Middle)
+            elif pinch(lmList, 4, 12):
                 if imgNumber < len(pathImages) - 1:
                     buttonPressed = True
+                    imgNumber += 1
                     annotations = [[]]
                     annotationNumber = 0
-                    imgNumber += 1
 
-        # Gesture 3 - Show Pointer
-        if fingers == [0, 1, 1, 0, 0]:
+        # -------------------- POINTER --------------------
+        elif fingers == [0, 1, 1, 0, 0]:
             cv2.circle(imgSlide, indexFinger, 10, (0, 0, 255), cv2.FILLED)
             annotationStart = False
 
-        # Gesture 4 - Draw Pointer
-        if fingers == [0, 1, 0, 0, 0]:
-            if annotationStart is False:
+        # -------------------- DRAW --------------------
+        elif fingers == [0, 1, 0, 0, 0]:
+            if not annotationStart:
                 annotationStart = True
                 annotationNumber += 1
                 annotations.append([])
-            cv2.circle(imgSlide, indexFinger, 5, (200, 200, 0), cv2.FILLED)
             annotations[annotationNumber].append(indexFinger)
+            cv2.circle(imgSlide, indexFinger, 5, (200, 200, 0), cv2.FILLED)
 
         else:
             annotationStart = False
 
-        # Gesture 5 - Erase
+        # -------------------- ERASE --------------------
         if fingers == [0, 1, 1, 1, 0]:
-            if annotations:
-                if annotationNumber >= 0:
-                    annotations.pop(-1)
-                    annotationNumber -= 1
-                    buttonPressed = True
+            if annotationNumber >= 0:
+                annotations.pop(-1)
+                annotationNumber -= 1
+                buttonPressed = True
 
-    else:
-        annotationStart = False
-
-    # Button Pressed Iterations
+    # -------------------- Debounce --------------------
     if buttonPressed:
         buttonCounter += 1
         if buttonCounter > buttonDelay:
             buttonCounter = 0
             buttonPressed = False
 
+    # -------------------- Draw Annotations --------------------
     for i in range(len(annotations)):
-        for j in range(len(annotations[i])):
-            if j != 0:
-                cv2.line(imgSlide, annotations[i][j-1], annotations[i][j], (200, 200, 0), 5)
+        for j in range(1, len(annotations[i])):
+            cv2.line(imgSlide, annotations[i][j - 1],
+                     annotations[i][j], (200, 200, 0), 5)
 
-    # Adding a webcam image on the slides
-    imgSmall = cv2.resize(img, (ws, hs))
-    imgSlide[0:hs, w-ws:w] = imgSmall
+    # Webcam preview on slide
+    imgSmall = cv2.resize(img, (213, 120))
+    imgSlide[0:120, w - 213:w] = imgSmall
 
     cv2.imshow("Slides", imgSlide)
     cv2.imshow("Image", img)
-    key = cv2.waitKey(1)
-    if key == ord('q'):
+
+    if cv2.waitKey(1) & 0xFF == ord("q"):
         break
