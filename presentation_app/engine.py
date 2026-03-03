@@ -46,8 +46,8 @@ def _map_to_slide(lm):
     return x, y
 
 
-def _draw_hud(slide, slide_idx, total, spotlight_active):
-    """Overlay slide counter and spotlight badge."""
+def _draw_hud(slide, slide_idx, total, spotlight_active, mic_status=None):
+    """Overlay slide counter, spotlight badge, and mic status indicator."""
     # Slide counter — bottom left
     cv2.putText(slide, f"{slide_idx + 1} / {total}",
                 (12, SLIDE_H - 12), cv2.FONT_HERSHEY_SIMPLEX,
@@ -57,6 +57,21 @@ def _draw_hud(slide, slide_idx, total, spotlight_active):
         cv2.rectangle(slide, (8, 8), (165, 35), BLACK, -1)
         cv2.putText(slide, "SPOTLIGHT ON", (12, 28),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.65, YELLOW, 2, cv2.LINE_AA)
+    # Mic status indicator — bottom right
+    if mic_status is not None:
+        _STATUS_COLORS = {
+            "starting":   (0, 200, 255),   # amber
+            "ready":      (0, 220, 0),     # green
+            "processing": (255, 180, 0),   # cyan-blue
+            "stopped":    (80, 80, 80),    # grey
+        }
+        color = _STATUS_COLORS.get(mic_status, (80, 80, 80))
+        label = f"MIC: {mic_status.upper()}"
+        x0 = SLIDE_W - 180
+        cv2.rectangle(slide, (x0 - 4, SLIDE_H - 32), (SLIDE_W - 6, SLIDE_H - 6), BLACK, -1)
+        cv2.circle(slide, (x0 + 6, SLIDE_H - 18), 7, color, -1)
+        cv2.putText(slide, label, (x0 + 18, SLIDE_H - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1, cv2.LINE_AA)
 
 
 # ── Main entry point ─────────────────────────────────────────────────────────
@@ -251,7 +266,8 @@ def run_presentation(image_paths: list, settings: dict = None):
             slide = spotlight.create_overlay(slide, sx, sy)
 
         # ── HUD ──────────────────────────────────────────────────────────────
-        _draw_hud(slide, slide_idx, len(slides), spotlight.is_active)
+        mic_status = voice.status if voice else None
+        _draw_hud(slide, slide_idx, len(slides), spotlight.is_active, mic_status)
 
         # Webcam thumbnail — top-right corner
         thumb = cv2.resize(frame, (213, 120))
