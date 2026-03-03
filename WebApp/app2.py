@@ -143,6 +143,11 @@ with st.sidebar:
     gesture_threshold  = st.slider("Gesture Threshold", 100,  500, 300)
     dimmed_bright_pct  = st.slider("Dimmed Brightness (%)", 10, 90,  30)
     hardware_dim       = st.checkbox("Hardware Brightness (macOS)", value=True)
+    voice_enabled      = st.checkbox(
+        "Voice Control",
+        value=False,
+        help='Say "computer next", "computer previous", "computer go to slide 3", "computer spotlight", "computer exit"',
+    )
 
     settings = {
         "spotlight_radius":  spotlight_radius,
@@ -150,6 +155,7 @@ with st.sidebar:
         "gesture_threshold": gesture_threshold,
         "dimmed_brightness": dimmed_bright_pct / 100,
         "hardware_dim":      hardware_dim,
+        "voice_enabled":     voice_enabled,
     }
 
     st.markdown("---")
@@ -165,6 +171,17 @@ with st.sidebar:
     ]
     for g, a in gestures:
         st.markdown(f"**`{g}`** → {a}")
+
+    st.markdown("---")
+    st.markdown("## 🎙️ Voice Commands")
+    st.markdown(
+        'Wake word: **`computer`**\n\n'
+        '**`computer next`** → Next slide  \n'
+        '**`computer previous`** → Prev slide  \n'
+        '**`computer go to slide 5`** → Jump to slide  \n'
+        '**`computer spotlight`** → Toggle spotlight  \n'
+        '**`computer exit`** → End presentation  \n'
+    )
 
     st.markdown("---")
     st.markdown("## ⌨️ Keyboard")

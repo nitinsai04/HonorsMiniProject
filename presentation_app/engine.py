@@ -5,6 +5,7 @@ Accepts arbitrary image paths and a settings dict from the launcher.
 
 import os
 import sys
+import queue
 import cv2
 import numpy as np
 
@@ -79,6 +80,7 @@ def run_presentation(image_paths: list, settings: dict = None):
     dim_opacity       = settings.get("dim_opacity", 0.7)
     dimmed_brightness = settings.get("dimmed_brightness", 0.3)
     hardware_dim      = settings.get("hardware_dim", True)
+    voice_enabled     = settings.get("voice_enabled", False)
 
     # ── Load slides ──────────────────────────────────────────────────────────
     slides = []
@@ -106,6 +108,18 @@ def run_presentation(image_paths: list, settings: dict = None):
         hardware_dim_enabled=hardware_dim,
         dimmed_brightness=dimmed_brightness,
     )
+
+    # ── Voice controller (optional) ───────────────────────────────────────────
+    cmd_queue = queue.Queue()
+    voice = None
+    if voice_enabled:
+        try:
+            from presentation_app.voice_controller import VoiceController
+            voice = VoiceController(cmd_queue, len(slides))
+            voice.start()
+        except Exception as e:
+            print(f"[engine] Voice init failed: {e}")
+            voice = None
 
     # ── State ────────────────────────────────────────────────────────────────
     slide_idx       = 0
@@ -192,6 +206,36 @@ def run_presentation(image_paths: list, settings: dict = None):
                 btn_counter = 0
                 btn_pressed = False
 
+        # ── Voice commands ────────────────────────────────────────────────────
+        while not cmd_queue.empty():
+            try:
+                cmd = cmd_queue.get_nowait()
+            except queue.Empty:
+                break
+            if cmd == "next" and slide_idx < len(slides) - 1:
+                slide_idx += 1
+                annotations = [[]]
+                ann_number  = 0
+            elif cmd == "prev" and slide_idx > 0:
+                slide_idx -= 1
+                annotations = [[]]
+                ann_number  = 0
+            elif cmd == "spotlight":
+                spotlight.toggle()
+            elif cmd == "quit":
+                spotlight.cleanup()
+                cap.release()
+                cv2.destroyAllWindows()
+                if voice:
+                    voice.stop()
+                return
+            elif cmd.startswith("goto:"):
+                n = int(cmd.split(":")[1]) - 1  # convert to 0-based
+                if 0 <= n < len(slides):
+                    slide_idx  = n
+                    annotations = [[]]
+                    ann_number  = 0
+
         # ── Render annotations ───────────────────────────────────────────────
         for stroke in annotations:
             for j in range(1, len(stroke)):
@@ -234,6 +278,8 @@ def run_presentation(image_paths: list, settings: dict = None):
             spotlight.increase_dim()
 
     # ── Cleanup ───────────────────────────────────────────────────────────────
+    if voice:
+        voice.stop()
     spotlight.cleanup()
     cap.release()
     cv2.destroyAllWindows()
