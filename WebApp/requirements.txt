@@ -1,0 +1,6 @@
+streamlit
+PyMuPDF
+opencv-python<4.10
+numpy<2
+cvzone
+mediapipe
