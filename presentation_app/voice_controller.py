@@ -9,6 +9,8 @@ Always-on background listening (like Siri / Google Assistant):
   • Word-to-number conversion   — "slide five" → 5
   • TTS in a dedicated daemon thread — never blocks listening
   • `status` property for HUD display
+  • Session mode — after wake word, stays active for SESSION_TIMEOUT seconds;
+    subsequent commands need no wake word; mic stays in "processing" state
 
 Wake word: "computer"
 """
@@ -43,6 +45,7 @@ _WORD_NUMS: dict[str, int] = {
 }
 
 WAKE_WORD = "computer"
+SESSION_TIMEOUT = 8   # seconds of silence before session expires
 
 # ── Intent word-sets ───────────────────────────────────────────────────────────
 _NEXT_WORDS    = {"next", "forward", "advance", "ahead"}
@@ -101,6 +104,11 @@ class VoiceController:
         self._status        = self.STATUS_STOPPED
         self._status_lock   = threading.Lock()
 
+        # Session state — active window after wake word
+        self._session_active = False
+        self._session_timer: Optional[threading.Timer] = None
+        self._session_lock   = threading.Lock()
+
         # TTS engine (lives only in the TTS thread)
         self._tts_available = _TTS_AVAILABLE
 
@@ -132,6 +140,7 @@ class VoiceController:
     def stop(self):
         """Stop background listening and TTS."""
         self._stop_event.set()
+        self._cancel_session_timer()
         self._set_status(self.STATUS_STOPPED)
         if self._bg_listener:
             try:
@@ -147,6 +156,40 @@ class VoiceController:
     def _set_status(self, s: str):
         with self._status_lock:
             self._status = s
+
+    # ── Session management ────────────────────────────────────────────────────
+
+    def _enter_session(self):
+        """Wake word heard — open an active command session."""
+        with self._session_lock:
+            self._session_active = True
+        self._set_status(self.STATUS_PROCESSING)
+        self._reset_session_timer()
+        print(f"[voice] Session opened ({SESSION_TIMEOUT}s window)")
+
+    def _reset_session_timer(self):
+        """Restart the inactivity timer that closes the session."""
+        self._cancel_session_timer()
+        t = threading.Timer(SESSION_TIMEOUT, self._expire_session)
+        t.daemon = True
+        with self._session_lock:
+            self._session_timer = t
+        t.start()
+
+    def _cancel_session_timer(self):
+        with self._session_lock:
+            if self._session_timer:
+                self._session_timer.cancel()
+                self._session_timer = None
+
+    def _expire_session(self):
+        """Called when SESSION_TIMEOUT elapses with no command."""
+        with self._session_lock:
+            self._session_active = False
+            self._session_timer = None
+        if not self._stop_event.is_set():
+            self._set_status(self.STATUS_READY)
+        print("[voice] Session expired — waiting for wake word")
 
     def _start_background_listener(self):
         try:
@@ -191,20 +234,34 @@ class VoiceController:
             print(f"[voice] Callback error: {e}")
         finally:
             if not self._stop_event.is_set():
-                self._set_status(self.STATUS_READY)
+                with self._session_lock:
+                    in_session = self._session_active
+                # Stay in PROCESSING during an active session; else go back to READY
+                self._set_status(
+                    self.STATUS_PROCESSING if in_session else self.STATUS_READY
+                )
 
     # ── Intent parser ─────────────────────────────────────────────────────────
 
     def _parse(self, text: str) -> Optional[str]:
         """
-        Return a command token if the wake word is present; else None.
+        Return a command token if the wake word is present OR a session is active.
         Uses word-set intent matching — not fragile exact-string tests.
         """
-        if WAKE_WORD not in text:
+        with self._session_lock:
+            in_session = self._session_active
+
+        if WAKE_WORD in text:
+            # Always open/refresh session when wake word is heard
+            self._enter_session()
+            body = text[text.index(WAKE_WORD) + len(WAKE_WORD):].strip()
+        elif in_session:
+            # Session active — treat the whole phrase as a command
+            body = text.strip()
+            self._reset_session_timer()   # each phrase resets the window
+        else:
             return None
 
-        # Strip everything up to and including the wake word
-        body = text[text.index(WAKE_WORD) + len(WAKE_WORD):].strip()
         words = set(body.split())
 
         # ── Next ──────────────────────────────────────────────────────────────
