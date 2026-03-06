@@ -13,6 +13,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from spotlight_module import SpotlightController
 from cvzone.HandTrackingModule import HandDetector
+from presentation_app.zoom_module import ZoomMagnifier
 
 
 # ── Constants ────────────────────────────────────────────────────────────────
@@ -22,7 +23,7 @@ BUTTON_DELAY = 20
 PINCH_THRESHOLD = 40
 
 # Landmark indices
-THUMB, INDEX, MIDDLE, RING = 4, 8, 12, 16
+THUMB, INDEX, MIDDLE, RING, PINKY = 4, 8, 12, 16, 20
 
 # BGR colours
 RED   = (0,   0,   255)
@@ -124,6 +125,8 @@ def run_presentation(image_paths: list, settings: dict = None):
         dimmed_brightness=dimmed_brightness,
     )
 
+    zoom = ZoomMagnifier(zoom_factor=2.5, radius=160)
+
     # ── Voice controller (optional) ───────────────────────────────────────────
     cmd_queue = queue.Queue()
     voice = None
@@ -191,6 +194,10 @@ def run_presentation(image_paths: list, settings: dict = None):
                     spotlight.toggle()
                     btn_pressed = True
 
+                elif _pinch(lm, THUMB, PINKY):         # Zoom
+                    zoom.toggle()
+                    btn_pressed = True
+
             # ── Below threshold: pointer / draw / erase ─────────────────────
             elif fingers == [0, 1, 1, 0, 0]:          # Pointer
                 if not spotlight.is_active:
@@ -237,6 +244,8 @@ def run_presentation(image_paths: list, settings: dict = None):
                 ann_number  = 0
             elif cmd == "spotlight":
                 spotlight.toggle()
+            elif cmd == "zoom":
+                zoom.toggle()
             elif cmd == "quit":
                 spotlight.cleanup()
                 cap.release()
@@ -265,6 +274,13 @@ def run_presentation(image_paths: list, settings: dict = None):
             sy = max(spotlight.radius, min(sy, SLIDE_H - spotlight.radius))
             slide = spotlight.create_overlay(slide, sx, sy)
 
+        # ── Zoom magnifier overlay ───────────────────────────────────────────
+        if zoom.is_active and hands:
+            lm = hands[0]["lmList"]
+            zx = int(np.interp(lm[INDEX][0], [CAM_W // 2, CAM_W], [0, SLIDE_W]))
+            zy = int(np.interp(lm[INDEX][1], [150, CAM_H - 150], [0, SLIDE_H]))
+            slide = zoom.apply(slide, zx, zy)
+
         # ── HUD ──────────────────────────────────────────────────────────────
         mic_status = voice.status if voice else None
         _draw_hud(slide, slide_idx, len(slides), spotlight.is_active, mic_status)
@@ -292,6 +308,8 @@ def run_presentation(image_paths: list, settings: dict = None):
             spotlight.decrease_dim()
         elif key == ord("]"):
             spotlight.increase_dim()
+        elif key == ord("z"):
+            zoom.toggle()
 
     # ── Cleanup ───────────────────────────────────────────────────────────────
     if voice:

@@ -47,7 +47,8 @@ WAKE_WORD = "computer"
 # ── Intent word-sets ───────────────────────────────────────────────────────────
 _NEXT_WORDS    = {"next", "forward", "advance", "ahead"}
 _PREV_WORDS    = {"previous", "back", "backward", "before", "prior", "last"}
-_SPOT_WORDS    = {"spotlight", "spot", "light", "highlight", "zoom"}
+_SPOT_WORDS    = {"spotlight", "spot", "light", "highlight"}
+_ZOOM_WORDS    = {"zoom", "magnify", "magnifier", "loupe", "enlarge"}
 _QUIT_WORDS    = {"exit", "quit", "end", "stop", "close", "bye"}
 _GOTO_WORDS    = {"go", "jump", "slide", "open", "show", "goto", "navigate"}
 
@@ -220,6 +221,11 @@ class VoiceController:
         if words & _SPOT_WORDS:
             self._speak("Spotlight toggled")
             return "spotlight"
+
+        # ── Zoom ──────────────────────────────────────────────────────────────
+        if words & _ZOOM_WORDS:
+            self._speak("Zoom toggled")
+            return "zoom"
 
         # ── Quit ──────────────────────────────────────────────────────────────
         if words & _QUIT_WORDS:

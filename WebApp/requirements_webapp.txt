@@ -3,7 +3,7 @@ PyMuPDF
 opencv-python<4.10
 numpy<2
 cvzone
-mediapipe==0.10.9
+mediapipe>=0.10.9
 SpeechRecognition
 pyttsx3
 pyaudio
