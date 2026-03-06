@@ -1,0 +1,33 @@
+%%{init: {'theme': 'base', 'themeVariables': {'fontSize': '22px', 'fontFamily': 'arial', 'primaryColor': '#4A90D9', 'primaryTextColor': '#fff', 'primaryBorderColor': '#2c5f8a', 'lineColor': '#555'}}}%%
+graph LR
+    P(["👤 Presenter"])
+
+    subgraph System["GestureFlow System"]
+        subgraph Nav["Slide Navigation"]
+            N1["Next Slide\nThumb + Middle"]
+            N2["Previous Slide\nThumb + Index"]
+            N3["Jump to Slide N\n'computer slide five'"]
+        end
+
+        subgraph Tools["Presentation Tools"]
+            T1["Spotlight\nThumb + Ring"]
+            T2["Zoom Magnifier\nThumb + Pinky"]
+            T3["Draw / Annotate\nIndex finger"]
+        end
+
+        subgraph VoiceUC["Voice Control"]
+            V1["Activate Session\n'computer'"]
+            V2["Voice Commands\nnext · back · focus · quit"]
+        end
+    end
+
+    P --- N1
+    P --- N2
+    P --- N3
+    P --- T1
+    P --- T2
+    P --- T3
+    P --- V1
+    V1 -.->|enables| V2
+    V2 -.->|controls| Nav
+    V2 -.->|controls| Tools

@@ -1,0 +1,28 @@
+%%{init: {'theme': 'base', 'themeVariables': {'fontSize': '20px', 'fontFamily': 'arial', 'actorBkg': '#4A90D9', 'actorTextColor': '#fff', 'actorBorderColor': '#2c5f8a', 'signalColor': '#333', 'signalTextColor': '#333', 'labelBoxBkgColor': '#e8f4fb', 'noteBkgColor': '#fff9c4'}}}%%
+sequenceDiagram
+    actor P as Presenter
+    participant App as Web App
+    participant Eng as Engine
+    participant Voice as Voice
+
+    P->>App: Upload PDF + configure settings
+    App->>App: Convert PDF → PNG slides
+    P->>App: Click Start
+    App->>Eng: Launch subprocess
+
+    Eng->>Voice: Start mic listener
+    Voice-->>Eng: MIC: READY
+
+    loop Presentation
+        P->>Eng: Pinch gesture
+        Eng->>Eng: Navigate / Spotlight / Zoom
+
+        P->>Voice: "computer next"
+        Voice-->>Eng: cmd = "next"
+        Eng->>Eng: Go to next slide
+        Eng->>P: Updated slide display
+    end
+
+    P->>Eng: Press Q or say "computer quit"
+    Eng->>Voice: stop()
+    Eng->>P: Window closes

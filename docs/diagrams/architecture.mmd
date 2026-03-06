@@ -1,0 +1,26 @@
+%%{init: {'theme': 'base', 'themeVariables': {'fontSize': '22px', 'fontFamily': 'arial', 'primaryColor': '#4A90D9', 'primaryTextColor': '#fff', 'primaryBorderColor': '#2c5f8a', 'lineColor': '#555', 'secondaryColor': '#f4f4f4', 'tertiaryColor': '#e8f4e8'}}}%%
+graph TD
+    P(["👤 Presenter"])
+
+    ST["🌐 Streamlit Web App\nUpload PDF · Settings · Launch"]
+    EN["🎮 Presentation Engine\nGesture Loop · Slide Render · HUD"]
+
+    SP["🔦 Spotlight\nDim overlay"]
+    ZM["🔍 Zoom\nMagnifier loupe"]
+    VC["🎤 Voice Controller\nSession mode · Intent matching"]
+
+    CAM["📷 Webcam"]
+    MIC["🎙️ Microphone"]
+    API["☁️ Google Speech API"]
+
+    P -->|"Upload PDF\nConfigure"| ST
+    ST -->|"subprocess launch"| EN
+    CAM -->|"video frames"| EN
+    EN --> SP
+    EN --> ZM
+    EN --> VC
+    MIC --> VC
+    VC -->|"audio"| API
+    API -->|"text"| VC
+    VC -->|"commands"| EN
+    EN -->|"slide window"| P
