@@ -12,7 +12,7 @@ Always-on background listening (like Siri / Google Assistant):
   • Session mode — after wake word, stays active for SESSION_TIMEOUT seconds;
     subsequent commands need no wake word; mic stays in "processing" state
 
-Wake word: "computer"
+Wake word: "pilot"
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ _WORD_NUMS: dict[str, int] = {
     "thirty": 30,
 }
 
-WAKE_WORD = "computer"
+WAKE_WORD = "pilot"
 SESSION_TIMEOUT = 8   # seconds of silence before session expires
 
 # ── Intent word-sets ───────────────────────────────────────────────────────────
@@ -91,7 +91,7 @@ class VoiceController:
 
         # Recognizer — tuned for fast, responsive transcription
         self.r = sr.Recognizer()
-        self.r.pause_threshold          = 0.5   # end-of-speech after 0.5 s silence
+        self.r.pause_threshold          = 0.8   # end-of-speech after 0.8 s silence
         self.r.phrase_threshold         = 0.1   # begin phrase quickly
         self.r.non_speaking_duration    = 0.3   # minimum silence between phrases
         self.r.dynamic_energy_threshold = True  # auto-adjust for room noise
@@ -254,7 +254,11 @@ class VoiceController:
         if WAKE_WORD in text:
             # Always open/refresh session when wake word is heard
             self._enter_session()
-            body = text[text.index(WAKE_WORD) + len(WAKE_WORD):].strip()
+            wake_idx = text.index(WAKE_WORD)
+            body = text[wake_idx + len(WAKE_WORD):].strip()
+            if not body:
+                # Wake word was at the end — check before it
+                body = text[:wake_idx].strip()
         elif in_session:
             # Session active — treat the whole phrase as a command
             body = text.strip()
@@ -301,6 +305,16 @@ class VoiceController:
                     return None
             self._speak("I didn't catch a slide number")
             return None
+
+        # ── Bare number (e.g. just "3" said after wake word) ─────────────────
+        n = _extract_number(body)
+        if n is not None:
+            if 1 <= n <= self.total_slides:
+                self._speak(f"Going to slide {n}")
+                return f"goto:{n}"
+            else:
+                self._speak(f"Slide {n} is out of range")
+                return None
 
         # Wake word heard but no recognised intent
         print(f"[voice] Unrecognised intent after wake word: '{body}'")
